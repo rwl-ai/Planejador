@@ -1408,10 +1408,10 @@ function renderDash(){
   const obraChipsEl=document.getElementById('dashObraChips');
   if(obraChipsEl){obraChipsEl.innerHTML=
     '<button class="obra-chip'+(dashSelectedObras.length===state.obras.length?' active':'')+'" onclick="dashSelectAllObras()">Todas</button>'+
-    state.obras.map(o=>'<button class="obra-chip'+(dashSelectedObras.includes(o.id)?' active':'')+'" onclick="dashToggleObra(''+o.id+'')">'+escH(o.name)+'</button>').join('');}
+    state.obras.map(o=>'<button class="obra-chip'+(dashSelectedObras.includes(o.id)?' active':'')+'" onclick="dashToggleObra(&quot;'+o.id+'&quot;)">'+escH(o.name)+'</button>').join('');}
   // chips anos
   const chipsEl=document.getElementById('dashYearChips');
-  if(chipsEl){chipsEl.innerHTML='<button class="year-chip"'+(dashFilterYear===null?' class="year-chip active"':'')+' onclick="setDashYear(null)" class="year-chip'+(dashFilterYear===null?' active':'')+'">Todos</button>'+years.map(y=>'<button class="year-chip'+(dashFilterYear===y?' active':'')+'" onclick="setDashYear('+y+')">'+y+'</button>').join('');}
+  if(chipsEl){chipsEl.innerHTML='<button class="year-chip'+(dashFilterYear===null?' active':'')+'" onclick="setDashYear(null)">Todos</button>'+years.map(y=>'<button class="year-chip'+(dashFilterYear===y?' active':'')+'" onclick="setDashYear('+y+')">'+y+'</button>').join('');}
   // título seção cards
   const scTitle=document.getElementById('dashScenCardsTitle');
   if(scTitle)scTitle.textContent=multiObra?'Por obra':'Por cenário';
@@ -1462,7 +1462,7 @@ function renderDash(){
             '<div class="dash-scen-metric"><div class="dash-scen-metric-lbl">Pico de desembolso</div><div class="dash-scen-metric-val amber">'+peakObraLabel+'</div></div>'+
             '<div class="dash-scen-metric"><div class="dash-scen-metric-lbl">Orçamento total</div><div class="dash-scen-metric-val">'+fmtMoney(parseBR(o.orcTotal))+'</div></div>'+
             '<div class="dash-scen-metric"><div class="dash-scen-metric-lbl">Cenários</div><div class="dash-scen-metric-val">'+o.scenarios.length+'</div></div>'+
-            '<div class="dash-scen-metric"><div class="dash-scen-metric-lbl">Abrir obra</div><div class="dash-scen-metric-val" style="cursor:pointer;color:var(--brand-600)" onclick="switchObra(''+o.id+'');goto('overview')">→ Ir para obra</div></div>'+
+            '<div class="dash-scen-metric"><div class="dash-scen-metric-lbl">Abrir obra</div><div class="dash-scen-metric-val" style="cursor:pointer;color:var(--brand-600)" onclick="switchObra(&quot;'+o.id+'&quot;);goto(&quot;overview&quot;)">→ Ir para obra</div></div>'+
           '</div>'+
         '</div>';
       }).join('');
@@ -1724,7 +1724,7 @@ function renderChartObraChips(){
   if(!chartSelectedObras.length)chartSelectedObras=[getActiveObra().id];
   el.innerHTML=
     '<button class="obra-chip'+(chartSelectedObras.length===state.obras.length?' active':'')+'" onclick="chartSelectAllObras()">Todas</button>'+
-    state.obras.map(o=>'<button class="obra-chip'+(chartSelectedObras.includes(o.id)?' active':'')+'" onclick="chartToggleObra(''+o.id+'')">'+escH(o.name)+'</button>').join('');
+    state.obras.map(o=>'<button class="obra-chip'+(chartSelectedObras.includes(o.id)?' active':'')+'" onclick="chartToggleObra(&quot;'+o.id+'&quot;)">'+escH(o.name)+'</button>').join('');
 }
 function chartSelectAllObras(){chartSelectedObras=state.obras.map(o=>o.id);renderChartObraChips();renderChart();}
 function chartToggleObra(id){
