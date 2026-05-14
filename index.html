@@ -419,6 +419,9 @@ body{font-family:var(--font);color:var(--text-1);background:var(--bg-app);font-s
 .consol-mkt-badge{font-size:11px;font-weight:600;color:var(--purple-600);background:var(--purple-50);border:1px solid var(--purple-100);padding:3px 8px;border-radius:100px}
 
 /* ── HINT ── */
+.event-orphan{background:var(--amber-50)!important;border-color:var(--amber-500)!important;}
+.event-orphan .evt-input,.event-orphan .evt-val,.event-orphan .evt-date{color:var(--amber-500)!important;}
+.orphan-badge{font-size:10px;font-weight:600;background:var(--amber-500);color:#fff;padding:2px 6px;border-radius:4px;white-space:nowrap;}
 .hint{font-size:12px;color:var(--text-2);margin-bottom:12px;line-height:1.6;padding:10px 14px;background:var(--bg-subtle);border-radius:var(--r-sm);border-left:3px solid var(--brand-500)}
 
 /* ── TWEAKS ── */
@@ -580,9 +583,26 @@ body{font-family:var(--font);color:var(--text-1);background:var(--bg-app);font-s
                   <input class="budget-input" type="text" id="orcTotal" value="10.000.000,00"/>
                 </div>
               </div>
-              <div class="budget-meta">
-                <div class="budget-pct" id="totalPctDisplay">100,0%</div>
-                <div class="budget-msg" id="totalMsg">alocado nos cenários</div>
+              <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end">
+                  <div>
+                    <div class="budget-label" style="margin-bottom:4px">Início da obra</div>
+                    <div style="display:flex;align-items:center;gap:4px">
+                      <input class="budget-input" type="text" id="obraStartInp" placeholder="MM/AAAA" maxlength="7" style="font-size:18px;font-weight:600;width:130px"/>
+                    </div>
+                  </div>
+                  <div style="color:rgba(255,255,255,.5);font-size:20px;padding-top:18px">→</div>
+                  <div>
+                    <div class="budget-label" style="margin-bottom:4px">Término da obra</div>
+                    <div style="display:flex;align-items:center;gap:4px">
+                      <input class="budget-input" type="text" id="obraEndInp" placeholder="MM/AAAA" maxlength="7" style="font-size:18px;font-weight:600;width:130px"/>
+                    </div>
+                  </div>
+                </div>
+                <div class="budget-meta" style="text-align:right">
+                  <div class="budget-pct" id="totalPctDisplay">100,0%</div>
+                  <div class="budget-msg" id="totalMsg">alocado nos cenários</div>
+                </div>
               </div>
             </div>
             <div class="budget-bar-wrap"><div class="budget-bar-fill" id="totalBar" style="width:100%"></div></div>
@@ -691,6 +711,8 @@ body{font-family:var(--font);color:var(--text-1);background:var(--bg-app);font-s
           <div class="dash-kpi-grid" id="consolKpiGrid"></div>
           <div class="section-title" style="margin-bottom:12px">Por obra</div>
           <div id="consolObraCards"></div>
+          <div class="section-title" style="margin:20px 0 12px">Gantt de obras <small>período de cada obra</small></div>
+          <div class="card" style="padding:20px;overflow-x:auto"><div id="consolGantt"></div></div>
           <div class="section-title" style="margin:20px 0 12px">Tabela consolidada <small id="consolTableSub"></small></div>
           <div class="card dash-card">
             <div class="dash-scroll">
@@ -820,7 +842,9 @@ function defaultObra(name){
     id:genId(),
     name:name||'Obra 1',
     orcTotal:'10.000.000,00',
-    scenarios:[{id:genId(),name:'Cenário 1',pct:100,start:{y:2026,m:6},end:{y:2041,m:12},manual:{},events:[]}]
+    obraStart:{y:2026,m:1},
+    obraEnd:{y:2030,m:12},
+    scenarios:[{id:genId(),name:'Cenário 1',pct:100,start:{y:2026,m:1},end:{y:2030,m:12},manual:{},events:[],mktFaixas:[]}]
   };
 }
 function defaultState(){
@@ -832,6 +856,8 @@ function normalizeState(p){
     if(!o.id)o.id=genId();
     if(!o.name)o.name='Obra';
     if(!o.orcTotal)o.orcTotal='10.000.000,00';
+    if(!o.obraStart)o.obraStart={y:2026,m:1};
+    if(!o.obraEnd)o.obraEnd={y:2030,m:12};
     if(!o.scenarios)o.scenarios=[];
     o.scenarios.forEach(sc=>{
       if(!sc.id)sc.id=genId();
@@ -959,7 +985,9 @@ function switchObra(id){
   // reset dashboard/chart to show new active obra by default
   dashSelectedObras=[id];
   chartSelectedObras=[id];
-  renderObraDropdown();updateObraUI();renderScenList();renderStatus();renderOverview();
+  renderObraDropdown();updateObraUI();
+  setTimeout(initObraPeriodInputs,50);
+  renderScenList();renderStatus();renderOverview();
   goto('overview');
 }
 function updateObraUI(){
@@ -973,6 +1001,11 @@ function updateObraUI(){
   document.getElementById('ovTitle').textContent='Visão geral — '+o.name;
   document.getElementById('dashTitle').textContent='Dashboard — '+o.name;
   document.getElementById('chartTitle').textContent='Curva de gastos — '+o.name;
+  // obra period inputs
+  const si=document.getElementById('obraStartInp');
+  const ei=document.getElementById('obraEndInp');
+  if(si)si.value=o.obraStart?String(o.obraStart.m).padStart(2,'0')+'/'+o.obraStart.y:'';
+  if(ei)ei.value=o.obraEnd?String(o.obraEnd.m).padStart(2,'0')+'/'+o.obraEnd.y:'';
 }
 function renderObraDropdown(){
   const dd=document.getElementById('obraDropdown');
@@ -1008,6 +1041,87 @@ function applyObraModal(){
   const name=document.getElementById('obraNameInput').value.trim()||o.name;
   o.name=name;closeObraModal();
   renderObraDropdown();updateObraUI();scheduleSave();
+}
+
+// ── obra period change logic ──
+function applyObraPeriod(o){
+  const os=o.obraStart,oe=o.obraEnd;
+  const osD=os.y*12+os.m,oeD=oe.y*12+oe.m;
+  o.scenarios.forEach(sc=>{
+    // clamp scenario start/end to obra bounds
+    const ssD=sc.start.y*12+sc.start.m,seD=sc.end.y*12+sc.end.m;
+    if(ssD<osD){sc.start={y:os.y,m:os.m};}
+    if(seD>oeD){sc.end={y:oe.y,m:oe.m};}
+    if(sc.start.y*12+sc.start.m>sc.end.y*12+sc.end.m){sc.start={y:os.y,m:os.m};sc.end={y:oe.y,m:oe.m};}
+    // migrate orphan events to correct scenario
+    (sc.events||[]).forEach(ev=>{
+      if(!ev.y||!ev.m)return;
+      const evD=ev.y*12+ev.m;
+      const inSc=evD>=sc.start.y*12+sc.start.m&&evD<=sc.end.y*12+sc.end.m;
+      if(!inSc){
+        // find another scenario that fits
+        const target=o.scenarios.find(s=>s!==sc&&evD>=s.start.y*12+s.start.m&&evD<=s.end.y*12+s.end.m);
+        if(target){
+          target.events.push(Object.assign({},ev));
+          ev._orphan=true;
+        } else {
+          // outside all scenarios AND outside obra period?
+          if(evD<osD||evD>oeD){ev._orphan=true;}
+          else{ev._orphan=true;} // inside obra but no scenario covers it
+        }
+      } else {
+        delete ev._orphan;
+      }
+    });
+    // remove moved events from source scenario
+    sc.events=sc.events.filter(ev=>!ev._orphan||(ev._orphan&&!o.scenarios.some(s=>s!==sc&&s.events.some(e=>e.id===ev.id))));
+    sc.events.forEach(ev=>{
+      if(ev._orphan){
+        const evD=ev.y*12+ev.m;
+        if(evD<osD||evD>oeD){ev._outOfObra=true;}
+        else{delete ev._outOfObra;}
+      } else {
+        delete ev._outOfObra;
+      }
+    });
+  });
+  // check remaining orphans outside obra
+  let hasOutOfObra=false;
+  o.scenarios.forEach(sc=>(sc.events||[]).forEach(ev=>{if(ev._outOfObra)hasOutOfObra=true;}));
+  if(hasOutOfObra){
+    setTimeout(()=>alert('⚠️ Atenção: um ou mais eventos fixos ficaram fora do período da obra. Eles estão destacados em laranja e podem ser excluídos ou ajustados.'),100);
+  }
+}
+
+// ── init obra period inputs (called from initUI) ──
+function initObraPeriodInputs(){
+  const si=document.getElementById('obraStartInp');
+  const ei=document.getElementById('obraEndInp');
+  if(!si||!ei)return;
+  if(si._wired)return;
+  si._wired=ei._wired=true;
+  function applyDate(which,m,y){
+    const o=getActiveObra();
+    if(which==='start'){
+      o.obraStart={y,m};
+      // clamp all scenarios
+      o.scenarios.forEach(sc=>{if(sc.start.y*12+sc.start.m<y*12+m){sc.start={y,m};}if(sc.end.y*12+sc.end.m<y*12+m){sc.end={y,m};}});
+    } else {
+      o.obraEnd={y,m};
+      o.scenarios.forEach(sc=>{if(sc.end.y*12+sc.end.m>y*12+m){sc.end={y,m};}if(sc.start.y*12+sc.start.m>y*12+m){sc.start={y,m};}});
+    }
+    applyObraPeriod(o);
+    renderScenList();renderStatus();renderOverview();scheduleSave();
+    if(currentPage==='scenario')renderPanel();
+  }
+  [si,ei].forEach((el,idx)=>{
+    const which=idx===0?'start':'end';
+    el.addEventListener('input',function(){
+      let v=this.value.replace(/\D/g,'');if(v.length>2)v=v.slice(0,2)+'/'+v.slice(2,6);this.value=v;
+      if(v.length===7){const p=v.split('/');const m=parseInt(p[0]),y=parseInt(p[1]);if(m>=1&&m<=12&&y>=2020&&y<=2050)applyDate(which,m,y);}
+    });
+    el.addEventListener('keydown',function(e){if(e.key==='Backspace'&&this.value.endsWith('/')){this.value=this.value.slice(0,-1);e.preventDefault()}if(e.key==='Enter')this.blur()});
+  });
 }
 function deleteCurrentObra(){
   const o=getActiveObra();
@@ -1074,7 +1188,7 @@ function deleteScenario(i){
 }
 function addScenario(){
   const o=getActiveObra();const n=o.scenarios.length+1;
-  o.scenarios.push({id:genId(),name:'Cenário '+n,pct:0,start:{y:2026,m:6},end:{y:2041,m:12},manual:{},events:[],mktFaixas:[]});
+  o.scenarios.push({id:genId(),name:'Cenário '+n,pct:0,start:{y:o.obraStart.y,m:o.obraStart.m},end:{y:o.obraEnd.y,m:o.obraEnd.m},manual:{},events:[],mktFaixas:[]});
   renderScenList();renderStatus();renderOverview();scheduleSave();
   goto('scenario',o.scenarios.length-1);
 }
@@ -1179,7 +1293,7 @@ function buildMktHTML(scIdx,sc,c){
         '<input class="evt-date" type="text" value="'+pe+'" placeholder="MM/AAAA" id="mktfe-'+fi+'"/>'+
         '<button class="mini-btn" onclick="toggleCal(event,\'mktcale-'+fi+'\')" title="Calendário"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button>'+
         '</div><div class="cal-popup" id="mktcale-'+fi+'" data-which="mkt-end" data-fi="'+fi+'"></div></div>'+
-      '<input class="param-input" type="text" id="mktpct-'+fi+'" value="'+(pct?fmtBR(pct,2)+' %':'')+'" placeholder="0,00 %" style="font-size:13px;color:var(--purple-600)"/>'+
+      '<input class="param-input" type="text" id="mktpct-'+fi+'" value="'+(pct?fmtBR(pct,2)+' %':'')+'" placeholder="0,00 %" style="font-size:13px;color:var(--purple-600)" onkeydown="if(event.key===\'Enter\'){this.blur()}" onblur="mktPctBlur('+scIdx+','+fi+',this.value)"/>'+
       '<span class="mkt-faixa-val" id="mktval-'+fi+'">'+(faixaVal(sc,c,f)>0?fmtMoney(faixaVal(sc,c,f),0):'—')+'</span>'+
       '<button class="mini-btn danger" onclick="delMktFaixa('+scIdx+','+fi+')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>'+
     '</div>';
@@ -1215,6 +1329,11 @@ function addMktFaixa(scIdx){
 function delMktFaixa(scIdx,fi){
   const o=getActiveObra();const sc=o.scenarios[scIdx];
   sc.mktFaixas.splice(fi,1);renderPanel();scheduleSave();
+}
+function mktPctBlur(scIdx,fi,rawVal){
+  const o=getActiveObra();const sc=o.scenarios[scIdx];if(!sc||!sc.mktFaixas[fi])return;
+  const v=rawVal.replace(/[^\d,.-]/g,'').replace(',','.');const n=parseFloat(v)||0;
+  sc.mktFaixas[fi].pct=String(n);refreshScenario();scheduleSave();
 }
 
 // ── panel inputs ──
@@ -1339,7 +1458,9 @@ function buildEventsHTML(scIdx,sc,c){
   const rows=events.map((ev,ei)=>{
     const dateVal=ev.m?String(ev.m).padStart(2,'0')+'/'+ev.y:'';
     const items=ev.composition||[];const hasItems=items.length>0;
-    return'<div class="event-row">'+
+    const isOrphan=!!(ev._outOfObra||ev._orphan);
+    return'<div class="event-row'+(isOrphan?' event-orphan':'')+'">'+
+      (isOrphan?'<span class="orphan-badge" style="grid-column:1/-1;margin-bottom:2px">⚠️ fora do período da obra</span>':'')+
       '<input class="evt-input" type="text" value="'+escH(ev.label||'')+'" placeholder="Ex.: Lançamento torre A" onchange="updEvent('+scIdx+','+ei+',\'label\',this.value)"/>'+
       '<input class="evt-val" type="text" value="'+escH(ev.value||'')+'" placeholder="R$ 0,00"/>'+
       '<div class="evt-date-wrap"><div class="evt-date-row"><input class="evt-date" type="text" value="'+dateVal+'" placeholder="MM/AAAA" id="evdi-'+ei+'"/>'+
@@ -1644,6 +1765,9 @@ function renderConsolidated(){
     dashKpi('Período',consolFilterYear?'Ano '+consolFilterYear:'Completo',filteredMonths.length+' meses','');
   }
 
+  // Gantt
+  const ganttEl=document.getElementById('consolGantt');
+  if(ganttEl)renderGantt(ganttEl);
   // Cartões por obra
   const cardsEl=document.getElementById('consolObraCards');
   if(cardsEl){cardsEl.innerHTML=obraData.map(({o,grandTotal,grandMkt})=>{
@@ -1688,6 +1812,72 @@ function renderConsolidated(){
   });
   document.getElementById('consolFoot').innerHTML='<tr><td>Total</td>'+totals.map(v=>'<td>'+fmtMoney(v)+'</td>').join('')+'<td class="mkt-col">'+fmtMoney(grandMkt)+'</td><td class="total-col">'+fmtMoney(grand)+'</td></tr>';
 }
+// ── Gantt chart ──
+function renderGantt(el){
+  if(!el)return;
+  const obras=state.obras;if(!obras.length){el.innerHTML='<div style="color:var(--text-3);font-size:12px;text-align:center;padding:20px">Nenhuma obra cadastrada.</div>';return;}
+  // find global min/max year
+  let minY=9999,maxY=0;
+  obras.forEach(o=>{
+    if(o.obraStart)minY=Math.min(minY,o.obraStart.y);
+    if(o.obraEnd)maxY=Math.max(maxY,o.obraEnd.y);
+  });
+  if(minY===9999){minY=2026;maxY=2030;}
+  const totalMonths=(maxY-minY+1)*12;
+  const isDark=document.body.dataset.theme==='dark';
+  const colors=['#2E6BE6','#0E9F7E','#7C3AED','#E0A322','#D7493A','#3B82F6','#10B981','#8B5CF6'];
+  let html='<div style="min-width:600px">';
+  // header years
+  html+='<div style="display:flex;margin-bottom:6px;padding-left:130px">';
+  for(let y=minY;y<=maxY;y++){
+    const w=(12/totalMonths*100).toFixed(2);
+    html+='<div style="width:'+w+'%;text-align:center;font-size:10px;font-weight:600;color:var(--text-3)">'+y+'</div>';
+  }
+  html+='</div>';
+  // month tick marks
+  html+='<div style="display:flex;margin-bottom:10px;padding-left:130px;position:relative">';
+  for(let y=minY;y<=maxY;y++){for(let m=1;m<=12;m++){
+    const w=(1/totalMonths*100).toFixed(3);
+    const isMid=m===7;
+    html+='<div style="width:'+w+'%;border-left:1px solid '+(m===1?'var(--border-strong)':'var(--border)')+';height:'+(m===1?'10px':'5px')+';flex-shrink:0;"></div>';
+  }}
+  html+='</div>';
+  // obra rows
+  obras.forEach((o,oi)=>{
+    if(!o.obraStart||!o.obraEnd)return;
+    const color=colors[oi%colors.length];
+    const startOff=((o.obraStart.y-minY)*12+(o.obraStart.m-1))/totalMonths*100;
+    const endOff=((o.obraEnd.y-minY)*12+o.obraEnd.m)/totalMonths*100;
+    const barW=Math.max(0.5,endOff-startOff);
+    const dur=(o.obraEnd.y-o.obraStart.y)*12+(o.obraEnd.m-o.obraStart.m)+1;
+    html+='<div style="display:flex;align-items:center;margin-bottom:8px;gap:0">';
+    html+='<div style="width:130px;flex-shrink:0;font-size:12px;font-weight:600;color:var(--text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px" title="'+escH(o.name)+'">'+escH(o.name)+'</div>';
+    html+='<div style="flex:1;position:relative;height:28px">';
+    html+='<div style="position:absolute;left:'+startOff.toFixed(2)+'%;width:'+barW.toFixed(2)+'%;height:100%;background:'+color+';border-radius:4px;display:flex;align-items:center;padding:0 8px;box-sizing:border-box;overflow:hidden;cursor:default" title="'+escH(o.name)+': '+String(o.obraStart.m).padStart(2,'0')+'/'+o.obraStart.y+' → '+String(o.obraEnd.m).padStart(2,'0')+'/'+o.obraEnd.y+' ('+dur+' meses)">';
+    html+='<span style="font-size:10px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+String(o.obraStart.m).padStart(2,'0')+'/'+o.obraStart.y+' → '+String(o.obraEnd.m).padStart(2,'0')+'/'+o.obraEnd.y+'</span>';
+    html+='</div></div></div>';
+    // cenários como sub-barras
+    o.scenarios.forEach((sc,si)=>{
+      const scStartOff=((sc.start.y-minY)*12+(sc.start.m-1))/totalMonths*100;
+      const scEndOff=((sc.end.y-minY)*12+sc.end.m)/totalMonths*100;
+      const scW=Math.max(0.2,scEndOff-scStartOff);
+      html+='<div style="display:flex;align-items:center;margin-bottom:3px">';
+      html+='<div style="width:130px;flex-shrink:0;font-size:10px;color:var(--text-3);padding-left:12px;padding-right:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escH(sc.name)+'</div>';
+      html+='<div style="flex:1;position:relative;height:14px">';
+      html+='<div style="position:absolute;left:'+scStartOff.toFixed(2)+'%;width:'+scW.toFixed(2)+'%;height:100%;background:'+color+'55;border:1px solid '+color+'88;border-radius:2px" title="'+escH(sc.name)+': '+String(sc.start.m).padStart(2,'0')+'/'+sc.start.y+' → '+String(sc.end.m).padStart(2,'0')+'/'+sc.end.y+'"></div>';
+      html+='</div></div>';
+    });
+    if(oi<obras.length-1)html+='<div style="height:1px;background:var(--border);margin:4px 0 8px 130px"></div>';
+  });
+  // today line
+  const now=new Date();const todayOff=((now.getFullYear()-minY)*12+now.getMonth())/totalMonths*100;
+  if(todayOff>=0&&todayOff<=100){
+    // inject via overlay — append as relative wrapper note
+  }
+  html+='</div>';
+  el.innerHTML=html;
+}
+
 function consolSelectAllObras(){consolSelectedObras=state.obras.map(o=>o.id);renderConsolidated();}
 function consolToggleObra(id){
   if(!consolSelectedObras)consolSelectedObras=state.obras.map(o=>o.id);
@@ -1887,7 +2077,7 @@ function calPick(e,id,which,y,m){
   if(which==='new-event'){const inp=document.getElementById('new-ev-date');if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;if(el)el.classList.remove('open');openCalId=null;return}
   if(which==='event'){const ei=parseInt(el.dataset.ei);sc.events[ei].y=y;sc.events[ei].m=m;const inp=document.getElementById('evdi-'+ei);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;refreshScenario();scheduleSave();}
   else if(which==='start'||which==='end'){sc[which]={y,m};const inp=document.getElementById('inp-'+which);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;renderPanel();renderScenList();scheduleSave();}
-  else if(which==='mkt-start'||which==='mkt-end'){const fi=parseInt(el.dataset.fi);if(sc.mktFaixas[fi]){const side=which==='mkt-start'?'start':'end';sc.mktFaixas[fi][side]={y,m};const inpId=which==='mkt-start'?'mktfs-'+fi:'mktfe-'+fi;const inp=document.getElementById(inpId);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;refreshScenario();scheduleSave();}}
+  else if(which==='mkt-start'||which==='mkt-end'){const fi=parseInt(el.dataset.fi);if(sc.mktFaixas[fi]){const side=which==='mkt-start'?'start':'end';sc.mktFaixas[fi][side]={y,m};const inpId=which==='mkt-start'?'mktfs-'+fi:'mktfe-'+fi;const inp=document.getElementById(inpId);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;refreshScenario();renderPanel();scheduleSave();}}
   if(el)el.classList.remove('open');openCalId=null;
 }
 
@@ -1932,6 +2122,7 @@ function handleImportFile(e){
 function initUI(){
   const o=getActiveObra();
   renderObraDropdown();updateObraUI();
+  initObraPeriodInputs();
   const el=document.getElementById('orcTotal');
   initCurrencyInput(el,raw=>{const ob=getActiveObra();ob.orcTotal=el.value;if(currentPage==='scenario')renderPanel();renderDash();renderStatus();renderScenList();if(currentPage==='overview')renderOverview();scheduleSave();});
   renderScenList();renderStatus();renderOverview();
