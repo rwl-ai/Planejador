@@ -1425,7 +1425,7 @@ function initPanelInputs(){
   document.querySelectorAll('.evt-date').forEach((el)=>{
     const id=el.id;
     if(id.startsWith('new-ev-date')){initDateInput(el,(m,y)=>{el._tempM=m;el._tempY=y});el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commitNewEvent(i)}});return;}
-    const me=id.match(/evdi-(\d+)/);if(me){const ei=parseInt(me[1]);initDateInput(el,(mm,yy)=>{if(sc.events[ei]){sc.events[ei].y=yy;sc.events[ei].m=mm;refreshScenario();scheduleSave();}});return;}
+    const me=id.match(/evdi-(\d+)/);if(me){const ei=parseInt(me[1]);initDateInput(el,(mm,yy)=>{if(sc.events[ei]){sc.events[ei].y=yy;sc.events[ei].m=mm;migrateScenarioEvents(getActiveObra());clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave();}});return;}
     // mkt faixa date inputs
     const ms=id.match(/mktfs-(\d+)/);if(ms){const fi=parseInt(ms[1]);initDateInput(el,(mm,yy)=>{if(!sc.mktFaixas[fi])return;sc.mktFaixas[fi].start={y:yy,m:mm};refreshScenario();scheduleSave();});return;}
     const mfe=id.match(/mktfe-(\d+)/);if(mfe){const fi=parseInt(mfe[1]);initDateInput(el,(mm,yy)=>{if(!sc.mktFaixas[fi])return;sc.mktFaixas[fi].end={y:yy,m:mm};refreshScenario();scheduleSave();});return;}
@@ -2146,7 +2146,7 @@ function calNav(e,id,which,year){e.stopPropagation();const el=document.getElemen
 function calPick(e,id,which,y,m){
   e.stopPropagation();const el=document.getElementById(id);const o=getActiveObra();const sc=o.scenarios[activeScen];
   if(which==='new-event'){const inp=document.getElementById('new-ev-date');if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;if(el)el.classList.remove('open');openCalId=null;return}
-  if(which==='event'){const ei=parseInt(el.dataset.ei);sc.events[ei].y=y;sc.events[ei].m=m;const inp=document.getElementById('evdi-'+ei);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;refreshScenario();scheduleSave();}
+  if(which==='event'){const ei=parseInt(el.dataset.ei);sc.events[ei].y=y;sc.events[ei].m=m;const inp=document.getElementById('evdi-'+ei);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;migrateScenarioEvents(getActiveObra());clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave();}
   else if(which==='start'||which==='end'){sc[which]={y,m};const inp=document.getElementById('inp-'+which);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;migrateScenarioEvents(getActiveObra());clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave();}
   else if(which==='mkt-start'||which==='mkt-end'){const fi=parseInt(el.dataset.fi);if(sc.mktFaixas[fi]){const side=which==='mkt-start'?'start':'end';sc.mktFaixas[fi][side]={y,m};const inpId=which==='mkt-start'?'mktfs-'+fi:'mktfe-'+fi;const inp=document.getElementById(inpId);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;refreshScenario();renderPanel();scheduleSave();}}
   if(el)el.classList.remove('open');openCalId=null;
