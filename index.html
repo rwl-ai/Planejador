@@ -1272,7 +1272,13 @@ function renderOverview(){
   document.getElementById('kpiGrid').innerHTML=
     kpi('Orçamento total',fmtMoney(total),null)+
     kpi('Alocado em cenários',fmtMoney(grandSpent),(grandSpent/total),total>0?grandSpent/total>1.0001?'over':grandSpent/total<.99?'':'ok':null)+
-    kpi('Meses cobertos',activeMonthSet.size+'/'+MONTHS.length,activeMonthSet.size/MONTHS.length)+
+    (()=>{
+      const osD=o.obraStart?o.obraStart.y*12+o.obraStart.m:0;
+      const oeD=o.obraEnd?o.obraEnd.y*12+o.obraEnd.m:99999;
+      const obraMonths=MONTHS.filter(({y,m})=>{const d=y*12+m;return d>=osD&&d<=oeD;}).length;
+      const denom=obraMonths||MONTHS.length;
+      return kpi('Meses cobertos',activeMonthSet.size+'/'+denom,activeMonthSet.size/denom);
+    })()+
     kpi('Eventos fixos',String(totalEvents),null,null,errCount>0?'<span style="color:var(--red-500)">'+errCount+' c/ alerta</span>':'');
   document.getElementById('scenGrid').innerHTML=o.scenarios.map((sc,i)=>{
     const c=compute(sc,total);const st=scenStatus(sc,total);
