@@ -866,7 +866,7 @@ function normalizeState(p){
       if(!sc.manual)sc.manual={};
       // mkt faixas
       if(!sc.mktFaixas)sc.mktFaixas=[];
-      sc.events.forEach(ev=>{if(!ev.composition)ev.composition=[]});
+      sc.events.forEach(ev=>{if(!ev.composition)ev.composition=[];delete ev._orphan;delete ev._outOfObra;});
     });
   });
   if(!p.activeObraId||!p.obras.find(o=>o.id===p.activeObraId))p.activeObraId=p.obras[0].id;
@@ -894,6 +894,7 @@ function applyRemoteState(remote){
   refreshAfterRemote();
 }
 function refreshAfterRemote(){
+  state.obras.forEach(o=>clearOrphanFlags(o));
   renderObraDropdown();updateObraUI();
   renderScenList();renderStatus();renderOverview();
   if(currentPage==='scenario')renderPanel();
@@ -1045,12 +1046,25 @@ function applyObraModal(){
 
 // ── clear orphan flags for events that are now inside a valid scenario ──
 function clearOrphanFlags(o){
+  const osD=o.obraStart?o.obraStart.y*12+o.obraStart.m:0;
+  const oeD=o.obraEnd?o.obraEnd.y*12+o.obraEnd.m:99999;
   o.scenarios.forEach(sc=>{
     (sc.events||[]).forEach(ev=>{
-      if(!ev.y||!ev.m)return;
+      if(!ev.y||!ev.m){delete ev._orphan;delete ev._outOfObra;return;}
       const evD=ev.y*12+ev.m;
-      const inSc=evD>=sc.start.y*12+sc.start.m&&evD<=sc.end.y*12+sc.end.m;
+      const ssD=sc.start.y*12+sc.start.m;
+      const seD=sc.end.y*12+sc.end.m;
+      const inSc=evD>=ssD&&evD<=seD;
+      const inObra=evD>=osD&&evD<=oeD;
       if(inSc){delete ev._orphan;delete ev._outOfObra;}
+      else if(!inObra){ev._orphan=true;ev._outOfObra=true;}
+      // inside obra but outside scenario: keep as _orphan but not _outOfObra
+      // unless another scenario covers it
+      else{
+        const coveredByOther=o.scenarios.some(s=>s!==sc&&evD>=s.start.y*12+s.start.m&&evD<=s.end.y*12+s.end.m);
+        if(!coveredByOther){delete ev._orphan;delete ev._outOfObra;} // no scenario covers it but inside obra — show normally
+        else{ev._orphan=true;delete ev._outOfObra;} // duplicate in another scenario
+      }
     });
   });
 }
@@ -1248,6 +1262,7 @@ function kpi(label,val,frac,barCls,subhtml){
 // ══════════════════════════════════════════════════════
 function renderPanel(){
   const o=getActiveObra();const i=activeScen;const sc=o.scenarios[i];if(!sc)return;
+  clearOrphanFlags(o);
   const total=parseBR(o.orcTotal);const c=compute(sc,total);
   const{totalVal,eventTotal,manualPctSum,manualVal,autoMonths,active,remainder}=c;
   const overBudget=eventTotal+manualVal>totalVal+0.01;
