@@ -938,6 +938,11 @@ body{
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Exportar
         </button>
+        <button class="btn" onclick="importJSON()" title="Importar JSON">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 5 17 10"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Importar
+        </button>
+        <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="handleImportFile(event)"/>
       </div>
     </div>
 
@@ -2108,6 +2113,37 @@ function exportJSON(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download='planejador-desembolso.json';a.click();
   setTimeout(()=>URL.revokeObjectURL(url),500);
+}
+
+function importJSON(){
+  document.getElementById('importFileInput').value='';
+  document.getElementById('importFileInput').click();
+}
+
+function handleImportFile(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const parsed=JSON.parse(ev.target.result);
+      const normalized=normalizeState(parsed);
+      if(!normalized||!normalized.scenarios||!normalized.scenarios.length){
+        alert('Arquivo inválido ou vazio.');return;
+      }
+      if(!confirm('Isso vai substituir todos os dados atuais pelo conteúdo do arquivo. Continuar?'))return;
+      Object.assign(state,normalized);
+      // atualiza orçamento
+      const el=document.getElementById('orcTotal');
+      if(el)el.value=state.orcTotal||'10.000.000,00';
+      renderScenList();renderStatus();renderOverview();
+      if(currentPage==='scenario')goto('overview');
+      scheduleSave();
+      alert('Dados importados com sucesso!');
+    }catch(err){
+      alert('Erro ao ler o arquivo. Verifique se é um JSON válido.');
+    }
+  };
+  reader.readAsText(file);
 }
 
 // ════════════════════════════════════════════════════════════════════
