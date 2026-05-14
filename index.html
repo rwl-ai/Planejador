@@ -1043,6 +1043,18 @@ function applyObraModal(){
   renderObraDropdown();updateObraUI();scheduleSave();
 }
 
+// ── clear orphan flags for events that are now inside a valid scenario ──
+function clearOrphanFlags(o){
+  o.scenarios.forEach(sc=>{
+    (sc.events||[]).forEach(ev=>{
+      if(!ev.y||!ev.m)return;
+      const evD=ev.y*12+ev.m;
+      const inSc=evD>=sc.start.y*12+sc.start.m&&evD<=sc.end.y*12+sc.end.m;
+      if(inSc){delete ev._orphan;delete ev._outOfObra;}
+    });
+  });
+}
+
 // ── obra period change logic ──
 function applyObraPeriod(o){
   const os=o.obraStart,oe=o.obraEnd;
@@ -1111,6 +1123,7 @@ function initObraPeriodInputs(){
       o.scenarios.forEach(sc=>{if(sc.end.y*12+sc.end.m>y*12+m){sc.end={y,m};}if(sc.start.y*12+sc.start.m>y*12+m){sc.start={y,m};}});
     }
     applyObraPeriod(o);
+    clearOrphanFlags(o);
     renderScenList();renderStatus();renderOverview();scheduleSave();
     if(currentPage==='scenario')renderPanel();
   }
@@ -1344,8 +1357,8 @@ function initPanelInputs(){
   pctEl.value=sc.pct?sc.pct.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' %':'';
   initPctInput(pctEl,raw=>{sc.pct=raw;refreshScenario();scheduleSave()});
   const ds=document.getElementById('inp-start'),de=document.getElementById('inp-end');
-  initDateInput(ds,(m,y)=>{sc.start={y,m};renderPanel();renderScenList();scheduleSave()});
-  initDateInput(de,(m,y)=>{sc.end={y,m};renderPanel();renderScenList();scheduleSave()});
+  initDateInput(ds,(m,y)=>{sc.start={y,m};clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave()});
+  initDateInput(de,(m,y)=>{sc.end={y,m};clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave()});
   document.querySelectorAll('.evt-val').forEach((el,ei)=>{
     const ev=sc.events[ei];const p=ev?parseBR(ev.value):0;
     el.value=p?'R$ '+p.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
@@ -2076,7 +2089,7 @@ function calPick(e,id,which,y,m){
   e.stopPropagation();const el=document.getElementById(id);const o=getActiveObra();const sc=o.scenarios[activeScen];
   if(which==='new-event'){const inp=document.getElementById('new-ev-date');if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;if(el)el.classList.remove('open');openCalId=null;return}
   if(which==='event'){const ei=parseInt(el.dataset.ei);sc.events[ei].y=y;sc.events[ei].m=m;const inp=document.getElementById('evdi-'+ei);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;refreshScenario();scheduleSave();}
-  else if(which==='start'||which==='end'){sc[which]={y,m};const inp=document.getElementById('inp-'+which);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;renderPanel();renderScenList();scheduleSave();}
+  else if(which==='start'||which==='end'){sc[which]={y,m};const inp=document.getElementById('inp-'+which);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave();}
   else if(which==='mkt-start'||which==='mkt-end'){const fi=parseInt(el.dataset.fi);if(sc.mktFaixas[fi]){const side=which==='mkt-start'?'start':'end';sc.mktFaixas[fi][side]={y,m};const inpId=which==='mkt-start'?'mktfs-'+fi:'mktfe-'+fi;const inp=document.getElementById(inpId);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;refreshScenario();renderPanel();scheduleSave();}}
   if(el)el.classList.remove('open');openCalId=null;
 }
