@@ -1044,6 +1044,43 @@ function applyObraModal(){
   renderObraDropdown();updateObraUI();scheduleSave();
 }
 
+// ── migrate events that fall outside their scenario to another valid scenario ──
+function migrateScenarioEvents(o){
+  o.scenarios.forEach(sc=>{
+    const ssD=sc.start.y*12+sc.start.m;
+    const seD=sc.end.y*12+sc.end.m;
+    const staying=[];
+    (sc.events||[]).forEach(ev=>{
+      if(!ev.y||!ev.m){staying.push(ev);return;}
+      const evD=ev.y*12+ev.m;
+      if(evD>=ssD&&evD<=seD){staying.push(ev);return;} // still inside, keep
+      // event fell outside — find another scenario that covers it
+      const target=o.scenarios.find(s=>{
+        if(s===sc)return false;
+        const tsD=s.start.y*12+s.start.m;
+        const teD=s.end.y*12+s.end.m;
+        return evD>=tsD&&evD<=teD;
+      });
+      if(target){
+        // move to target — avoid duplicates
+        if(!target.events.some(e=>e.id===ev.id)){
+          delete ev._orphan;delete ev._outOfObra;
+          target.events.push(ev);
+        }
+        // don't keep in source
+      } else {
+        // no scenario covers it — mark as orphan
+        ev._orphan=true;
+        const osD=o.obraStart?o.obraStart.y*12+o.obraStart.m:0;
+        const oeD=o.obraEnd?o.obraEnd.y*12+o.obraEnd.m:99999;
+        ev._outOfObra=(evD<osD||evD>oeD);
+        staying.push(ev);
+      }
+    });
+    sc.events=staying;
+  });
+}
+
 // ── clear orphan flags for events that are now inside a valid scenario ──
 function clearOrphanFlags(o){
   const osD=o.obraStart?o.obraStart.y*12+o.obraStart.m:0;
@@ -1372,8 +1409,8 @@ function initPanelInputs(){
   pctEl.value=sc.pct?sc.pct.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' %':'';
   initPctInput(pctEl,raw=>{sc.pct=raw;refreshScenario();scheduleSave()});
   const ds=document.getElementById('inp-start'),de=document.getElementById('inp-end');
-  initDateInput(ds,(m,y)=>{sc.start={y,m};clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave()});
-  initDateInput(de,(m,y)=>{sc.end={y,m};clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave()});
+  initDateInput(ds,(m,y)=>{sc.start={y,m};migrateScenarioEvents(getActiveObra());clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave()});
+  initDateInput(de,(m,y)=>{sc.end={y,m};migrateScenarioEvents(getActiveObra());clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave()});
   document.querySelectorAll('.evt-val').forEach((el,ei)=>{
     const ev=sc.events[ei];const p=ev?parseBR(ev.value):0;
     el.value=p?'R$ '+p.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
@@ -2104,7 +2141,7 @@ function calPick(e,id,which,y,m){
   e.stopPropagation();const el=document.getElementById(id);const o=getActiveObra();const sc=o.scenarios[activeScen];
   if(which==='new-event'){const inp=document.getElementById('new-ev-date');if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;if(el)el.classList.remove('open');openCalId=null;return}
   if(which==='event'){const ei=parseInt(el.dataset.ei);sc.events[ei].y=y;sc.events[ei].m=m;const inp=document.getElementById('evdi-'+ei);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;refreshScenario();scheduleSave();}
-  else if(which==='start'||which==='end'){sc[which]={y,m};const inp=document.getElementById('inp-'+which);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave();}
+  else if(which==='start'||which==='end'){sc[which]={y,m};const inp=document.getElementById('inp-'+which);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;migrateScenarioEvents(getActiveObra());clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave();}
   else if(which==='mkt-start'||which==='mkt-end'){const fi=parseInt(el.dataset.fi);if(sc.mktFaixas[fi]){const side=which==='mkt-start'?'start':'end';sc.mktFaixas[fi][side]={y,m};const inpId=which==='mkt-start'?'mktfs-'+fi:'mktfe-'+fi;const inp=document.getElementById(inpId);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;refreshScenario();renderPanel();scheduleSave();}}
   if(el)el.classList.remove('open');openCalId=null;
 }
