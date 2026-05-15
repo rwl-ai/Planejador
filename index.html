@@ -422,6 +422,18 @@ body{font-family:var(--font);color:var(--text-1);background:var(--bg-app);font-s
 .event-orphan{background:var(--amber-50)!important;border-color:var(--amber-500)!important;}
 .event-orphan .evt-input,.event-orphan .evt-val,.event-orphan .evt-date{color:var(--amber-500)!important;}
 .orphan-badge{font-size:10px;font-weight:600;background:var(--amber-500);color:#fff;padding:2px 6px;border-radius:4px;white-space:nowrap;}
+/* toast */
+.toast-container{position:fixed;bottom:24px;right:24px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);box-shadow:var(--sh-3);font-size:12px;color:var(--text-1);max-width:320px;pointer-events:none;animation:toastIn .25s ease forwards}
+.toast-icon{font-size:16px;flex-shrink:0;margin-top:1px}
+.toast-body{flex:1}
+.toast-title{font-weight:600;margin-bottom:2px;font-size:13px}
+.toast-sub{color:var(--text-2);line-height:1.4}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes toastOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(6px) scale(.97)}}
+/* event flash */
+@keyframes eventFlash{0%{background:rgba(224,163,34,.18);border-color:var(--amber-500);transform:scale(1.01)}60%{background:rgba(224,163,34,.08)}100%{background:transparent;border-color:var(--border);transform:scale(1)}}
+.event-row-flash{animation:eventFlash .9s ease forwards!important}
 .hint{font-size:12px;color:var(--text-2);margin-bottom:12px;line-height:1.6;padding:10px 14px;background:var(--bg-subtle);border-radius:var(--r-sm);border-left:3px solid var(--brand-500)}
 
 /* ── TWEAKS ── */
@@ -786,6 +798,7 @@ body{font-family:var(--font);color:var(--text-1);background:var(--bg-app);font-s
 </div>
 
 <!-- TWEAKS -->
+<div class="toast-container" id="toastContainer"></div>
 <div class="tweaks" id="tweaksPanel">
   <div style="font-weight:600;margin-bottom:8px;font-size:13px">Ajustes</div>
   <div class="tw-row"><label>Modo escuro</label><button class="tw-toggle" id="twTheme" onclick="toggleTheme()"></button></div>
@@ -1045,7 +1058,38 @@ function applyObraModal(){
 }
 
 // ── migrate events that fall outside their scenario to another valid scenario ──
+// ── toast notifications ──
+function flashMigratedEvents(idSet){
+  if(!idSet||!idSet.size)return;
+  setTimeout(()=>{
+    // Flash the events card border briefly
+    const card=document.querySelector('.events-card');
+    if(card){
+      card.style.transition='box-shadow .2s ease,border-color .2s ease';
+      card.style.boxShadow='0 0 0 2px var(--amber-500)';
+      card.style.borderColor='var(--amber-500)';
+      setTimeout(()=>{card.style.boxShadow='';card.style.borderColor='';},800);
+    }
+    // Flash remaining orphan rows (the ones that couldn't find a home)
+    document.querySelectorAll('.event-row.event-orphan').forEach(row=>{
+      row.style.animation='none';
+      row.offsetHeight; // reflow
+      row.style.animation='eventFlash 1s ease forwards';
+    });
+  },60);
+}
+
+function showToast(icon, title, sub, duration){
+  const container=document.getElementById('toastContainer');if(!container)return;
+  const el=document.createElement('div');el.className='toast';
+  el.innerHTML='<div class="toast-icon">'+icon+'</div><div class="toast-body"><div class="toast-title">'+title+'</div>'+(sub?'<div class="toast-sub">'+sub+'</div>':'')+'</div>';
+  container.appendChild(el);
+  const ms=duration||3200;
+  setTimeout(()=>{el.style.animation='toastOut .3s ease forwards';setTimeout(()=>el.remove(),300);},ms);
+}
+
 function migrateScenarioEvents(o){
+  const moved=[];
   o.scenarios.forEach(sc=>{
     const ssD=sc.start.y*12+sc.start.m;
     const seD=sc.end.y*12+sc.end.m;
@@ -1053,8 +1097,7 @@ function migrateScenarioEvents(o){
     (sc.events||[]).forEach(ev=>{
       if(!ev.y||!ev.m){staying.push(ev);return;}
       const evD=ev.y*12+ev.m;
-      if(evD>=ssD&&evD<=seD){staying.push(ev);return;} // still inside, keep
-      // event fell outside — find another scenario that covers it
+      if(evD>=ssD&&evD<=seD){staying.push(ev);return;}
       const target=o.scenarios.find(s=>{
         if(s===sc)return false;
         const tsD=s.start.y*12+s.start.m;
@@ -1062,14 +1105,12 @@ function migrateScenarioEvents(o){
         return evD>=tsD&&evD<=teD;
       });
       if(target){
-        // move to target — avoid duplicates
         if(!target.events.some(e=>e.id===ev.id)){
           delete ev._orphan;delete ev._outOfObra;
           target.events.push(ev);
+          moved.push({label:ev.label||'Evento',fromName:sc.name,toName:target.name,evId:ev.id});
         }
-        // don't keep in source
       } else {
-        // no scenario covers it — mark as orphan
         ev._orphan=true;
         const osD=o.obraStart?o.obraStart.y*12+o.obraStart.m:0;
         const oeD=o.obraEnd?o.obraEnd.y*12+o.obraEnd.m:99999;
@@ -1079,6 +1120,7 @@ function migrateScenarioEvents(o){
     });
     sc.events=staying;
   });
+  return moved;
 }
 
 // ── clear orphan flags for events that are now inside a valid scenario ──
@@ -1303,6 +1345,20 @@ function kpi(label,val,frac,barCls,subhtml){
 // ══════════════════════════════════════════════════════
 //  PAGE: SCENARIO
 // ══════════════════════════════════════════════════════
+function migrateAndNotify(pendingFlashIds){
+  const o=getActiveObra();
+  const moved=migrateScenarioEvents(o);
+  clearOrphanFlags(o);
+  if(moved.length){
+    moved.forEach(m=>{
+      showToast('↗️','Evento movido automaticamente','"'+m.label+'" foi para <strong>'+escH(m.toName)+'</strong>');
+    });
+    // store ids to flash after render
+    if(pendingFlashIds)moved.forEach(m=>pendingFlashIds.add(m.evId));
+  }
+  return moved;
+}
+
 function renderPanel(){
   const o=getActiveObra();const i=activeScen;const sc=o.scenarios[i];if(!sc)return;
   clearOrphanFlags(o);
@@ -1415,8 +1471,8 @@ function initPanelInputs(){
   pctEl.value=sc.pct?sc.pct.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' %':'';
   initPctInput(pctEl,raw=>{sc.pct=raw;refreshScenario();scheduleSave()});
   const ds=document.getElementById('inp-start'),de=document.getElementById('inp-end');
-  initDateInput(ds,(m,y)=>{sc.start={y,m};migrateScenarioEvents(getActiveObra());clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave()});
-  initDateInput(de,(m,y)=>{sc.end={y,m};migrateScenarioEvents(getActiveObra());clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave()});
+  initDateInput(ds,(m,y)=>{sc.start={y,m};{const _f=new Set();migrateAndNotify(_f);renderPanel();flashMigratedEvents(_f);renderScenList();scheduleSave();}});
+  initDateInput(de,(m,y)=>{sc.end={y,m};{const _f=new Set();migrateAndNotify(_f);renderPanel();flashMigratedEvents(_f);renderScenList();scheduleSave();}});
   document.querySelectorAll('.evt-val').forEach((el,ei)=>{
     const ev=sc.events[ei];const p=ev?parseBR(ev.value):0;
     el.value=p?'R$ '+p.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
@@ -1425,7 +1481,7 @@ function initPanelInputs(){
   document.querySelectorAll('.evt-date').forEach((el)=>{
     const id=el.id;
     if(id.startsWith('new-ev-date')){initDateInput(el,(m,y)=>{el._tempM=m;el._tempY=y});el.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commitNewEvent(i)}});return;}
-    const me=id.match(/evdi-(\d+)/);if(me){const ei=parseInt(me[1]);initDateInput(el,(mm,yy)=>{if(sc.events[ei]){sc.events[ei].y=yy;sc.events[ei].m=mm;migrateScenarioEvents(getActiveObra());clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave();}});return;}
+    const me=id.match(/evdi-(\d+)/);if(me){const ei=parseInt(me[1]);initDateInput(el,(mm,yy)=>{if(sc.events[ei]){sc.events[ei].y=yy;sc.events[ei].m=mm;{const _f=new Set();migrateAndNotify(_f);renderPanel();flashMigratedEvents(_f);renderScenList();scheduleSave();}}});return;}
     // mkt faixa date inputs
     const ms=id.match(/mktfs-(\d+)/);if(ms){const fi=parseInt(ms[1]);initDateInput(el,(mm,yy)=>{if(!sc.mktFaixas[fi])return;sc.mktFaixas[fi].start={y:yy,m:mm};refreshScenario();scheduleSave();});return;}
     const mfe=id.match(/mktfe-(\d+)/);if(mfe){const fi=parseInt(mfe[1]);initDateInput(el,(mm,yy)=>{if(!sc.mktFaixas[fi])return;sc.mktFaixas[fi].end={y:yy,m:mm};refreshScenario();scheduleSave();});return;}
@@ -1530,7 +1586,7 @@ function buildEventsHTML(scIdx,sc,c){
     const dateVal=ev.m?String(ev.m).padStart(2,'0')+'/'+ev.y:'';
     const items=ev.composition||[];const hasItems=items.length>0;
     const isOrphan=!!(ev._outOfObra||ev._orphan);
-    return'<div class="event-row'+(isOrphan?' event-orphan':'')+'">'+
+    return'<div class="event-row'+(isOrphan?' event-orphan':'')+'" data-evid="'+(ev.id||'')+'">'+
       (isOrphan?'<span class="orphan-badge" style="grid-column:1/-1;margin-bottom:2px">⚠️ fora do período da obra</span>':'')+
       '<input class="evt-input" type="text" value="'+escH(ev.label||'')+'" placeholder="Ex.: Lançamento torre A" onchange="updEvent('+scIdx+','+ei+',\'label\',this.value)"/>'+
       '<input class="evt-val" type="text" value="'+escH(ev.value||'')+'" placeholder="R$ 0,00"/>'+
@@ -2146,8 +2202,8 @@ function calNav(e,id,which,year){e.stopPropagation();const el=document.getElemen
 function calPick(e,id,which,y,m){
   e.stopPropagation();const el=document.getElementById(id);const o=getActiveObra();const sc=o.scenarios[activeScen];
   if(which==='new-event'){const inp=document.getElementById('new-ev-date');if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;if(el)el.classList.remove('open');openCalId=null;return}
-  if(which==='event'){const ei=parseInt(el.dataset.ei);sc.events[ei].y=y;sc.events[ei].m=m;const inp=document.getElementById('evdi-'+ei);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;migrateScenarioEvents(getActiveObra());clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave();}
-  else if(which==='start'||which==='end'){sc[which]={y,m};const inp=document.getElementById('inp-'+which);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;migrateScenarioEvents(getActiveObra());clearOrphanFlags(getActiveObra());renderPanel();renderScenList();scheduleSave();}
+  if(which==='event'){const ei=parseInt(el.dataset.ei);sc.events[ei].y=y;sc.events[ei].m=m;const inp=document.getElementById('evdi-'+ei);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;{const _f=new Set();migrateAndNotify(_f);renderPanel();flashMigratedEvents(_f);renderScenList();scheduleSave();}}
+  else if(which==='start'||which==='end'){sc[which]={y,m};const inp=document.getElementById('inp-'+which);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;{const _f=new Set();migrateAndNotify(_f);renderPanel();flashMigratedEvents(_f);renderScenList();scheduleSave();}}
   else if(which==='mkt-start'||which==='mkt-end'){const fi=parseInt(el.dataset.fi);if(sc.mktFaixas[fi]){const side=which==='mkt-start'?'start':'end';sc.mktFaixas[fi][side]={y,m};const inpId=which==='mkt-start'?'mktfs-'+fi:'mktfe-'+fi;const inp=document.getElementById(inpId);if(inp)inp.value=String(m).padStart(2,'0')+'/'+y;refreshScenario();renderPanel();scheduleSave();}}
   if(el)el.classList.remove('open');openCalId=null;
 }
